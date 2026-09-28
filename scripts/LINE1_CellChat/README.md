@@ -364,3 +364,168 @@ Before running these scripts, verify:
 
 The analysis was developed for the SRP413248 retinal snRNA-seq dataset.
 
+
+
+---
+
+## Individual donor CellChat networks
+
+### `Figure_Donor_CellChat_ALL_MAJORCLASSES.R`
+
+This script generates individual CellChat communication networks for each of
+the 16 retinal donors.
+
+The purpose of these figures is to visualize donor-to-donor heterogeneity in
+retinal intercellular communication and to complement the donor-level network
+metrics used in the L1FLnI–CellChat correlation analyses.
+
+### Major retinal cell classes
+
+The visualization considers the nine HRCA retinal major classes:
+
+- Amacrine
+- Astrocyte
+- Bipolar
+- Horizontal
+- Microglia
+- Muller glia
+- Photoreceptor
+- RGC
+- RPE
+
+The same node coordinates are used across donors so that differences between
+figures reflect differences in the inferred communication networks rather than
+changes in graphical layout.
+
+A cell class can only contribute communication edges when it is represented in
+the corresponding donor-level CellChat object. Therefore, absence of an edge
+should not automatically be interpreted as biological absence without also
+considering cell-type coverage.
+
+### Signaling pathways
+
+Unlike the earlier visualization restricted to selected pathways, this script
+extracts all signaling pathways available in each donor-level CellChat object.
+
+Two network representations are generated.
+
+#### FULL interactome
+
+The FULL network contains all available signaling pathways and displays them
+with a neutral edge color.
+
+This representation is intended to visualize the overall architecture of the
+donor-level CellChat network.
+
+#### HIGHLIGHT interactome
+
+The HIGHLIGHT network retains the complete interactome but emphasizes selected
+pathways:
+
+- APP
+- CADM
+- NCAM
+- NRXN
+- PSAP
+- VEGF
+
+All remaining signaling interactions are retained in the background.
+
+This representation is particularly useful for examining whether pathways of
+biological interest, including APP signaling involving Microglia, are present
+in individual donors.
+
+### Edge weights
+
+Edge thickness represents CellChat communication probability.
+
+A common probability-to-width transformation is used across donors so that the
+same communication probability has the same graphical meaning in every
+individual network.
+
+For visualization only, edge-width scaling is capped at the 99th percentile of
+the global communication-probability distribution. This prevents a small
+number of extreme interactions from making the remaining edges visually
+indistinguishable.
+
+The underlying CellChat communication probabilities are not modified.
+
+### Relationship to the correlation analysis
+
+These individual network figures are visualizations of donor-level CellChat
+communication and should not be confused with the statistical unit used in the
+correlation analysis.
+
+The L1FLnI–CellChat correlation analysis uses one observation per donor.
+
+The primary CellChat outcomes were calculated from each donor-level CellChat
+network as:
+
+    Network Density =
+        Active directed edges / Possible directed edges
+
+and:
+
+    Total Communication Strength =
+        Sum of CellChat communication weights
+
+The donor-level metrics used in the correlation analysis were generated before
+the pathway-restricted visualization scripts and were not calculated from the
+CADM/NCAM/NRXN/PSAP/VEGF-only figures.
+
+Some donor-level CellChat objects contained eight represented major cell
+classes whereas others contained nine. Network Density accounts for the number
+of represented classes through the denominator of possible directed edges.
+Total Communication Strength is the sum of the communication weights present
+in the donor network.
+
+A common-cell-class sensitivity analysis is recommended to evaluate whether
+differences in cell-class representation materially affect the observed
+donor-level associations.
+
+### Microglia
+
+Microglia is explicitly retained in these individual-donor visualizations.
+
+This is important because disease-associated communication involving Microglia
+may otherwise be hidden when the visualization is restricted to a predefined
+set of retinal cell classes.
+
+The script additionally exports:
+
+    MICROGLIA_ALL_DONOR_EDGES.csv
+
+and:
+
+    MICROGLIA_APP_EDGES.csv
+
+to allow donor-level inspection of Microglia-associated communication rather
+than relying only on visual interpretation of the network diagrams.
+
+### Output
+
+The script creates:
+
+    network_metrics/donor_networks_ALL_majorclasses/
+
+with the following structure:
+
+    FULL/
+        Healthy/
+        Dry_AMD/
+        Wet_AMD/
+
+    HIGHLIGHT/
+        Healthy/
+        Dry_AMD/
+        Wet_AMD/
+
+and the supporting tables:
+
+    ALL_DONORS_ALL_PATHWAYS_EDGES.csv
+    DONOR_PATHWAY_SUMMARY.csv
+    MICROGLIA_ALL_DONOR_EDGES.csv
+    MICROGLIA_APP_EDGES.csv
+
+The PNG files are intended for rapid inspection and figure assembly, while PDF
+files provide vector output for publication-quality editing.
