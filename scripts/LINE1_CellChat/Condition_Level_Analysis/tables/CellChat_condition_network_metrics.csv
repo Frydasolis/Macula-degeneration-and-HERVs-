@@ -1,0 +1,4 @@
+"Condition","n_cells","n_celltypes","active_edges","possible_edges","density","total_strength","total_LR_interactions"
+"Healthy Control",11010,9,68,81,0.839506172839506,18.9106873671029,614
+"Dry AMD",8633,9,81,81,1,38.3237947000741,1317
+"Wet AMD",19686,9,65,81,0.802469135802469,13.8368118995453,518
