@@ -1,23 +1,51 @@
+# ============================================================
+# Figure 1A: TE-associated transcript burden in AMD
+#
+# Complete sample-level analysis:
+# - Mixed-effects model
+# - Type III ANOVA with Satterthwaite approximation
+# - Tukey-adjusted post hoc comparisons
+# - Model diagnostics
+# - Publication-quality Figure 1A
+#
+# Input: TE_burden_by_donor_celltype.csv
+# ============================================================
+
+
 ############################################################
-# FIGURE 1A — SAMPLE-LEVEL TE BURDEN
-# Retinal cell populations in AMD
+# TE BURDEN MIXED-EFFECTS ANALYSIS
+# Figure 1A - Retinal cell populations
 ############################################################
 
 suppressPackageStartupMessages({
-  library(ggplot2)
   library(dplyr)
+  library(lme4)
   library(lmerTest)
+  library(emmeans)
+  library(ggplot2)
 })
 
-base <- paste0(
-  "/storage/lemus_g/roldan/ARMD/results/",
-  "SRP413248/TE_burden_donor_analysis"
+# ----------------------------------------------------------
+# 1. DIRECTORIES
+# ----------------------------------------------------------
+
+base <- Sys.getenv(
+  "TE_BURDEN_DATA_DIR",
+  unset = file.path(
+    "results",
+    "SRP413248",
+    "TE_burden_donor_analysis"
+  )
 )
 
-outdir <- file.path(base, "Figure1A_FINAL")
+outdir <- file.path(base, "Mixed_model")
+
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
-# 1. Load sample-level data
+# ----------------------------------------------------------
+# 2. LOAD DATA
+# ----------------------------------------------------------
+
 dat <- read.csv(
   file.path(base, "TE_burden_by_donor_celltype.csv"),
   stringsAsFactors = FALSE
@@ -39,44 +67,246 @@ conditions <- c(
   "Wet AMD"
 )
 
+# Minimum nuclei per sample and cell type
+min_cells <- 20
+
 dat <- dat %>%
   filter(
     HRCA_majorclass %in% celltypes,
     Disease %in% conditions,
-    n_cells >= 20
+    n_cells >= min_cells
   ) %>%
   mutate(
+    sample = factor(sample),
     HRCA_majorclass = factor(
-      HRCA_majorclass, levels = celltypes
+      HRCA_majorclass,
+      levels = celltypes
     ),
     Disease = factor(
-      Disease, levels = conditions
+      Disease,
+      levels = conditions
     )
   )
 
-# 2. Load previously fitted mixed-effects model
-model <- readRDS(
-  file.path(
-    base,
-    "Mixed_model",
-    "TE_burden_mixed_model.rds"
-  )
+cat("\n=== SAMPLE COVERAGE ===\n")
+
+sample_coverage <- dat %>%
+  count(Disease, HRCA_majorclass)
+
+print(as.data.frame(sample_coverage), row.names = FALSE)
+
+# ----------------------------------------------------------
+# 3. MIXED-EFFECTS MODEL
+# ----------------------------------------------------------
+
+model <- lmer(
+  mean_TE ~ HRCA_majorclass * Disease + (1 | sample),
+  data = dat,
+  REML = TRUE
 )
 
-anova_tab <- anova(
+cat("\n=== MODEL SUMMARY ===\n")
+print(summary(model))
+
+cat("\n=== TYPE III ANOVA ===\n")
+
+anova_results <- anova(
   model,
   type = 3,
   ddf = "Satterthwaite"
 )
 
-p_cell <- anova_tab[
-  "HRCA_majorclass", "Pr(>F)"
-]
+print(anova_results)
 
-p_disease <- anova_tab[
-  "Disease", "Pr(>F)"
-]
+write.csv(
+  as.data.frame(anova_results),
+  file.path(outdir, "Mixed_model_ANOVA.csv")
+)
 
+# ----------------------------------------------------------
+# 4. POST HOC: CELL TYPES WITHIN EACH CONDITION
+# ----------------------------------------------------------
+
+emm_cell <- emmeans(
+  model,
+  ~ HRCA_majorclass | Disease
+)
+
+posthoc_cell <- as.data.frame(
+  pairs(
+    emm_cell,
+    adjust = "tukey"
+  )
+)
+
+cat("\n=== CELL TYPE COMPARISONS ===\n")
+
+print(posthoc_cell, row.names = FALSE)
+
+write.csv(
+  posthoc_cell,
+  file.path(outdir, "Posthoc_celltypes_by_disease.csv"),
+  row.names = FALSE
+)
+
+# ----------------------------------------------------------
+# 5. POST HOC: DISEASE WITHIN EACH CELL TYPE
+# ----------------------------------------------------------
+
+emm_disease <- emmeans(
+  model,
+  ~ Disease | HRCA_majorclass
+)
+
+posthoc_disease <- as.data.frame(
+  pairs(
+    emm_disease,
+    adjust = "tukey"
+  )
+)
+
+cat("\n=== DISEASE COMPARISONS ===\n")
+
+print(posthoc_disease, row.names = FALSE)
+
+write.csv(
+  posthoc_disease,
+  file.path(outdir, "Posthoc_disease_by_celltype.csv"),
+  row.names = FALSE
+)
+
+# ----------------------------------------------------------
+# 6. ESTIMATED MARGINAL MEANS
+# ----------------------------------------------------------
+
+emm_table <- as.data.frame(
+  emmeans(
+    model,
+    ~ HRCA_majorclass * Disease
+  )
+)
+
+write.csv(
+  emm_table,
+  file.path(outdir, "Estimated_marginal_means.csv"),
+  row.names = FALSE
+)
+
+# ----------------------------------------------------------
+# 7. DIAGNOSTICS
+# ----------------------------------------------------------
+
+pdf(
+  file.path(outdir, "Model_diagnostics.pdf"),
+  width = 10,
+  height = 5
+)
+
+par(mfrow = c(1, 2))
+
+plot(
+  fitted(model),
+  resid(model),
+  xlab = "Fitted values",
+  ylab = "Residuals",
+  main = "Residuals vs fitted"
+)
+
+abline(h = 0, lty = 2)
+
+qqnorm(
+  resid(model),
+  main = "Normal Q-Q plot"
+)
+
+qqline(resid(model))
+
+dev.off()
+
+# ----------------------------------------------------------
+# 8. DESCRIPTIVE FIGURE
+# ----------------------------------------------------------
+
+p <- ggplot(
+  dat,
+  aes(
+    x = HRCA_majorclass,
+    y = mean_TE,
+    color = Disease
+  )
+) +
+  geom_point(
+    position = position_jitterdodge(
+      jitter.width = 0.12,
+      dodge.width = 0.7
+    ),
+    size = 2,
+    alpha = 0.85
+  ) +
+  stat_summary(
+    aes(group = Disease),
+    fun = mean,
+    geom = "point",
+    position = position_dodge(width = 0.7),
+    size = 3,
+    shape = 18
+  ) +
+  labs(
+    x = "Retinal cell population",
+    y = "Mean TE-associated transcript burden (%)",
+    color = "Condition"
+  ) +
+  theme_classic(base_size = 12) +
+  theme(
+    axis.text.x = element_text(
+      angle = 45,
+      hjust = 1
+    )
+  )
+
+ggsave(
+  file.path(outdir, "TE_burden_mixed_model.png"),
+  p,
+  width = 12,
+  height = 6,
+  dpi = 300
+)
+
+ggsave(
+  file.path(outdir, "TE_burden_mixed_model.pdf"),
+  p,
+  width = 12,
+  height = 6
+)
+
+# ----------------------------------------------------------
+# 9. SAVE MODEL
+# ----------------------------------------------------------
+
+saveRDS(
+  model,
+  file.path(outdir, "TE_burden_mixed_model.rds")
+)
+
+cat("\n====================================\n")
+cat("MIXED MODEL ANALYSIS COMPLETED\n")
+cat("====================================\n")
+
+cat("\nOutput directory:\n", outdir, "\n")
+
+
+# ============================================================
+# FINAL FIGURE 1A
+# Reuse the model fitted above; no external model RDS required.
+# ============================================================
+
+outdir <- file.path(base, "Figure1A_FINAL")
+dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
+
+anova_tab <- anova_results
+
+p_cell <- anova_tab["HRCA_majorclass", "Pr(>F)"]
+p_disease <- anova_tab["Disease", "Pr(>F)"]
 p_interaction <- anova_tab[
   "HRCA_majorclass:Disease", "Pr(>F)"
 ]
@@ -90,6 +320,7 @@ format_p <- function(x) {
 }
 
 # 3. Colors
+
 colors <- c(
   "Healthy Control" = "#607D8B",
   "Dry AMD" = "#E5A04B",
